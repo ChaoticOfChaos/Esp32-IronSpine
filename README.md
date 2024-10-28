@@ -24,6 +24,7 @@ A Simple Firmware to ESP32
 - AP Connection (Connect Esp32 to Selected AP)
 - AP Scanner (Scan and Show Close APs, Clicking on AP Start a Deauth Attack)
 - ARP List (Show IPv4 and Mac From Connected Devices by ARP)
+- Capture (Wireshark Like. Show Packages in Serial Monitor)
 
 # PT-BR
 Some characters do not have the correct accent due to a compilation error, which causes some characters that have an accent to be displayed incorrectly.<br>
@@ -34,7 +35,7 @@ Alguns caracteres não tem o acento correto devido erro de compilação, que faz
 # Attention
 I Don't Find a Library to Send Deauth Packet in Esp32. A Library i used to it, is too heavy to EspWroom32.
 
-Sorry );
+Sorry ;(
 
 But if you can do it without use a heavy library, contact me.
 
