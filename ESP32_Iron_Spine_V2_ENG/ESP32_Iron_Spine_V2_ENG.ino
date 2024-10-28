@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <lwip/etharp.h>
+#include <esp_wifi.h>
 
 // AP Credentials
 const char* ap_ssid = "ESP32";
@@ -30,21 +31,25 @@ void setupAP() {
   server.on("/scanner", handleWifiScanner);
   server.on("/deauth", handleAttackDeauth);
   server.on("/arp", handleARP);
+  server.on("/cap", capture);
   server.begin();
 
   Serial.println("HTTP Server Started...");
 }
 
+// Root Page Confis
 void handleRoot() {
-  String htmlRoot = "<html><head><title>ESP32 | Root</title><style>html {background-color: black;color: purple;display: flex;}a {color: red;}</style></head><body><h1>ESP32 : Settings</h1><h2>Pages : </h2><a href='/connect'>AP Connection</a><br><a href='/scanner'>AP Scanner</a><br><a href='/arp'>ARP Scanner</a><br></body></html>";
+  String htmlRoot = "<html><head><title>ESP32 | Root</title><style>html {background-color: black;color: purple;display: flex;}a {color: red;}</style></head><body><h1>ESP32 : Settings</h1><h2>Pages : </h2><a href='/connect'>AP Connection</a><br><a href='/scanner'>AP Scanner</a><br><a href='/arp'>ARP Scanner</a><br><a href='/cap'>Capture</a></body></html>";
   server.send(200, "text/html", htmlRoot);
 }
 
+// Connection Page Conf
 void handleWifiConnect() {
-  String htmlConnection = "<html><head><title>ESP32 | AP Connect</title><style>html {background-color: black;color: purple;}input {background-color: black;color: purple;}</style></head><body><h1>AP Connection Config</h1><form action='/submit' method='POST'>SSID : <input type='text' name='ssid'><br>Pass : <input type='text' name='password'><br><input type='submit' value='Connect'></form></body></html>";
+  String htmlConnection = "<html><head><title>ESP32 | AP Connect</title><style>html {background-color: black;color: purple;}input {background-color: black;color: purple;}</style></head><body><h1>AP Connection Config</h1><form action='/submit' method='POST'>SSID : <input type='text' name='ssid'><br>Pass : <input type='password' name='password'><br><input type='submit' value='Connect'></form></body></html>";
   server.send(200, "text/html", htmlConnection);
 }
 
+// Paga that recive the AP login credentials
 void handleSubmit() {
   ssid = server.arg("ssid");
   password = server.arg("password");
@@ -70,6 +75,8 @@ void connectToWiFi() {
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\nConnected to AP");
+    Serial.println("IP : ");
+    Serial.print(WiFi.localIP());
     startWebServer();
   } else {
     Serial.println("Fail to Connect to AP");
@@ -77,6 +84,7 @@ void connectToWiFi() {
   }
 }
 
+// Start/Restart HTTP Server
 void startWebServer() {
   server.on("/", []() {
     server.send(200, "text/html", "<h1>Connected to AP!</h1>");
@@ -85,6 +93,7 @@ void startWebServer() {
   Serial.println("HTTP Server Started!");
 }
 
+// WiFi Scanner Handle
 void handleWifiScanner() {
   int numNetworks = WiFi.scanNetworks();
   String htmlScan = "<html><head><title>ESP32 | AP Scan</title><style>html {background-color: black;color: purple;}a {color: red;}</style></head><body><h1>Close APs</h1><ul>";
@@ -98,6 +107,7 @@ void handleWifiScanner() {
   server.send(200, "text/html", htmlScan);
 }
 
+// ARP Page Conf
 void handleARP() {
   String htmlArp = "<html><head><title>ESP32 | ARP</title><style>html {background-color: black;color: purple;}</style></head><body>";
   htmlArp += "<h1>Connected Devices : </h1><table border='1'><tr><th>IPv4</th><th>MAC Address</th></tr>";
@@ -124,6 +134,7 @@ void handleARP() {
   server.send(200, "text/html", htmlArp);
 }
 
+// Deauth function1
 void deauthAttack(uint8_t *targetMac) {
   for (int i = 0; i < 100; i++) {
     sendDeauthFrame(targetMac);
@@ -131,6 +142,7 @@ void deauthAttack(uint8_t *targetMac) {
   }
 }
 
+// Deauth function2
 // NOTE: The ESP32 requires special handling for sending deauth packets
 void sendDeauthFrame(uint8_t *targetMac) {
   uint8_t deauthPacket[] = {
@@ -146,7 +158,7 @@ void sendDeauthFrame(uint8_t *targetMac) {
   // You may use an external library or custom functions to achieve this.
 }
 
-// Start Deauth Attack
+// Deauth function3
 void handleAttackDeauth() {
   if (server.hasArg("ssid") && server.hasArg("channel") && server.hasArg("mac")) {
     targetSSID = server.arg("ssid");
@@ -170,6 +182,7 @@ void handleAttackDeauth() {
   }
 }
 
+// Format MAC
 String formatMacAddress(uint8_t *mac) {
   String macStr = "";
   for (int i = 0; i < 6; i++) {
@@ -182,6 +195,36 @@ String formatMacAddress(uint8_t *mac) {
     }
   }
   return macStr;
+}
+
+// Capture conf
+void capture() {
+  if (WiFi.status() == WL_CONNECTED) {
+    esp_wifi_set_promiscuous(true);
+
+    esp_wifi_set_promiscuous_rx_cb([](void *buf, wifi_promiscuous_pkt_type_t type) {
+      wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t *)buf;
+      uint16_t len = pkt->rx_ctrl.sig_len;
+      uint8_t *data = pkt->payload;
+
+      for (int i = 0; i < len; i++) {
+        Serial.printf("%02X ", data[i]);
+        if ((i + 1) % 16 == 0) {
+          Serial.println();
+        }
+      }
+      Serial.println("\n");
+      Serial.print("Package Captured - Length : ");
+      Serial.print(len);
+      Serial.println(" bytes");
+      Serial.println("\n");
+    });
+
+    Serial.println("Promiscuous mode Activated. Capturing Packages...");
+    server.send(200, "text/html", "<html><body>Capture Mode Activated!</body></html>");
+  } else {
+    server.send(400, "text/html", "<html><body>Connect to an AP before using the Capture Function</body></html>");
+  }
 }
 
 void setup() {

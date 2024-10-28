@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <lwip/etharp.h>
+#include <esp_wifi.h>
 
 // Credenciais do AP
 const char* ap_ssid = "ESP32";
@@ -30,21 +31,25 @@ void setupAP() {
   server.on("/scanner", handleWifiScanner);
   server.on("/deauth", handleAttackDeauth);
   server.on("/arp", handleARP);
+  server.on("/cap", capture);
   server.begin();
 
   Serial.println("Servidor HTTP inciado...");
 }
 
+// Configurações da Pagina Root
 void handleRoot() {
-  String htmlRoot = "<html><head><title>ESP32 | Root</title><style>html {background-color: black;color: purple;display: flex;}a {color: red;}</style></head><body><h1>ESP32 : Configuracoes</h1><h2>Paginas : </h2><a href='/connect'>Conexao WiFi</a><br><a href='/scanner'>Scaner WiFi</a><br><a href='/arp'>Scaner ARP</a><br></body></html>";
+  String htmlRoot = "<html><head><title>ESP32 | Root</title><style>html {background-color: black;color: purple;display: flex;}a {color: red;}</style></head><body><h1>ESP32 : Configuracoes</h1><h2>Paginas : </h2><a href='/connect'>Conexao WiFi</a><br><a href='/scanner'>Scaner WiFi</a><br><a href='/arp'>Scaner ARP</a><br><a href='/cap'></a></body></html>";
   server.send(200, "text/html", htmlRoot);
 }
 
+// Configurações da Pagina de Conexão
 void handleWifiConnect() {
-  String htmlConnection = "<html><head><title>ESP32 | Conexao WiFi</title><style>html {background-color: black;color: purple;}input {background-color: black;color: purple;}</style></head><body><h1>Conexao WiFi : Configuracoes</h1><form action='/submit' method='POST'>SSID : <input type='text' name='ssid'><br>Senha : <input type='text' name='password'><br><input type='submit' value='Conectar'></form></body></html>";
+  String htmlConnection = "<html><head><title>ESP32 | Conexao WiFi</title><style>html {background-color: black;color: purple;}input {background-color: black;color: purple;}</style></head><body><h1>Conexao WiFi : Configuracoes</h1><form action='/submit' method='POST'>SSID : <input type='text' name='ssid'><br>Senha : <input type='password' name='password'><br><input type='submit' value='Conectar'></form></body></html>";
   server.send(200, "text/html", htmlConnection);
 }
 
+// Recebe as Credenciais de login da rede
 void handleSubmit() {
   ssid = server.arg("ssid");
   password = server.arg("password");
@@ -70,6 +75,8 @@ void connectToWiFi() {
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\nConectado ao WiFi");
+    Serial.println("IP : ");
+    Serial.print(WiFi.localIP());
     startWebServer();
   } else {
     Serial.println("Falha ao conectar ao WiFi");
@@ -77,6 +84,7 @@ void connectToWiFi() {
   }
 }
 
+// Inicia/Reinicia o Servidor HTTP
 void startWebServer() {
   server.on("/", []() {
     server.send(200, "text/html", "<h1>Conectado a WiFi!</h1>");
@@ -85,6 +93,7 @@ void startWebServer() {
   Serial.println("Servidor HTTP iniciado!");
 }
 
+// Configurações do Scanner Wifi
 void handleWifiScanner() {
   int numNetworks = WiFi.scanNetworks();
   String htmlScan = "<html><head><title>ESP32 | WiFi Scan</title><style>html {background-color: black;color: purple;}a {color: red;}</style></head><body><h1>WiFis Proximos</h1><ul>";
@@ -98,6 +107,7 @@ void handleWifiScanner() {
   server.send(200, "text/html", htmlScan);
 }
 
+// Configurações do ARP
 void handleARP() {
   String htmlArp = "<html><head><title>ESP32 | ARP</title><style>html {background-color: black;color: purple;}</style></head><body>";
   htmlArp += "<h1>Dispositivos conectados : </h1><table border='1'><tr><th>IPv4</th><th>Endereco MAC</th></tr>";
@@ -123,6 +133,7 @@ void handleARP() {
   server.send(200, "text/html", htmlArp);
 }
 
+// Deauth função1
 void deauthAttack(uint8_t *targetMac) {
   for (int i = 0; i < 100; i++) {
     sendDeauthFrame(targetMac);
@@ -130,6 +141,8 @@ void deauthAttack(uint8_t *targetMac) {
   }
 }
 
+// Deauth função2
+// NOTA: O Esp32 requer um tratamento especial para pacotes de desautenticação
 void sendDeauthFrame(uint8_t *targetMac) {
   uint8_t deauthPacket[] = {
     0xC0, 0x00, 0x3A, 0x01,
@@ -139,9 +152,12 @@ void sendDeauthFrame(uint8_t *targetMac) {
     0x00, 0x00,
     0x07, 0x00
   };
+
+  // Você precisará implementar a função de enviar os pacotes
+  // Você precisará de bibliotecas externar ou até bibliotecas personalizadas para isso
 }
 
-// Inicia o ataque de Deauth
+// Deauth função3
 void handleAttackDeauth() {
   if (server.hasArg("ssid") && server.hasArg("channel") && server.hasArg("mac")) {
     targetSSID = server.arg("ssid");
@@ -153,6 +169,10 @@ void handleAttackDeauth() {
 
     sscanf(macStr.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &targetMac[0], &targetMac[1], &targetMac[2], &targetMac[3], &targetMac[4], &targetMac[5]);
 
+    // NOTA: Você precisará mudar manualmente o canal
+    // Você também precisará implementar a função de troca de canal
+    // O que precisará de bibliotecas externas
+
     deauthAttack(targetMac);
 
     server.send(200, "text/html", "<html><body><h1>Atacando : " + targetSSID + "</h1></body></html>");
@@ -161,6 +181,7 @@ void handleAttackDeauth() {
   }
 }
 
+// Formata MAC
 String formatMacAddress(uint8_t *mac) {
   String macStr = "";
   for (int i = 0; i < 6; i++) {
@@ -173,6 +194,36 @@ String formatMacAddress(uint8_t *mac) {
     }
   }
   return macStr;
+}
+
+// Configurações de Captura
+void capture() {
+  if (WiFi.status() == WL_CONNECTED) {
+    esp_wifi_set_promiscuous(true);
+
+    esp_wifi_set_promiscuous_rx_cb([](void *buf, wifi_promiscuous_pkt_type_t type) {
+      wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t *)buf;
+      uint16_t len = pkt->rx_ctrl.sig_len;
+      uint8_t *data = pkt->payload;
+
+      for (int i = 0; i < len; i++) {
+        Serial.printf("%02X ", data[i]);
+        if ((i + 1) % 16 == 0) {
+          Serial.println();
+        }
+      }
+      Serial.println("\n");
+      Serial.print("Pacote Capturado - Tamanho : ");
+      Serial.print(len);
+      Serial.println(" bytes");
+      Serial.println("\n");
+    });
+
+    Serial.println("Modo Promiscuo Ativado. Capturando Pacotes...");
+    server.send(200, "text/html", "<html><body>Modo de Captura Ativado!</body></html>");
+  } else {
+    server.send(400, "text/html", "<html><body>Conecte-se a um wifi antes de ativar a função de captura</body></html>");
+  }
 }
 
 void setup() {
